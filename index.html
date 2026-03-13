@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LexOS · Gestão Jurídica com IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+/* ===== RESET & BASE ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0a0a;--paper:#f7f4ee;--gold:#b8962e;--gold2:#e8c96a;
+  --faded:rgba(10,10,10,0.11);--muted:rgba(10,10,10,0.45);
+  --danger:#c0392b;--warn:#d4870e;--ok:#27774a;
+  --serif:'Cormorant Garamond',serif;--mono:'DM Mono',monospace;
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--serif);min-height:100vh;position:relative;overflow-x:hidden}
+
+/* ===== GRAIN TEXTURE ===== */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:.5;
+}
+
+/* ===== LAYOUT ===== */
+.app{max-width:960px;margin:0 auto;padding:2rem 1.5rem;position:relative;z-index:1}
+
+/* ===== HEADER ===== */
+.header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2.5rem;padding-bottom:1rem;border-bottom:.5px solid var(--faded)}
+.wordmark{font-size:13px;font-family:var(--mono);letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
+.wordmark span{color:var(--gold)}
+.datestamp{font-size:11px;font-family:var(--mono);color:var(--muted);letter-spacing:.05em}
+
+/* ===== API KEY BANNER ===== */
+.api-banner{background:rgba(184,150,46,.08);border:.5px solid rgba(184,150,46,.35);padding:.75rem 1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.api-banner-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);flex-shrink:0}
+.api-input{flex:1;min-width:200px;font-family:var(--mono);font-size:11px;background:transparent;border:.5px solid rgba(184,150,46,.3);color:var(--ink);padding:5px 8px;outline:none;transition:border-color .2s}
+.api-input:focus{border-color:var(--gold)}
+.api-save-btn{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;border:.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:6px 12px;cursor:pointer;transition:all .2s;white-space:nowrap}
+.api-save-btn:hover{background:var(--gold);border-color:var(--gold)}
+.api-status{font-family:var(--mono);font-size:9px;color:var(--ok)}
+
+/* ===== SCORE ROW ===== */
+.score-row{display:grid;grid-template-columns:repeat(5,1fr);border:.5px solid var(--faded);margin-bottom:2rem}
+.sc{padding:1rem .75rem;border-right:.5px solid var(--faded);transition:background .2s}
+.sc:last-child{border-right:none}
+.sc:hover{background:rgba(184,150,46,.05)}
+.sc-num{font-size:30px;font-weight:300;line-height:1;margin-bottom:3px;letter-spacing:-.02em}
+.sc-num.warn{color:var(--warn)}.sc-num.ok{color:var(--gold)}.sc-num.danger{color:var(--danger)}
+.sc-label{font-size:9px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+@media(max-width:600px){.score-row{grid-template-columns:repeat(3,1fr)}.sc:nth-child(4),.sc:nth-child(5){display:none}}
+
+/* ===== NAV ===== */
+.nav-strip{display:flex;border:.5px solid var(--faded);margin-bottom:2rem;overflow-x:auto}
+.npill{flex:1;min-width:80px;padding:8px 4px;text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .2s;border-right:.5px solid var(--faded);white-space:nowrap}
+.npill:last-child{border-right:none}
+.npill.active,.npill:hover{background:var(--ink);color:var(--paper)}
+
+/* ===== VIEWS ===== */
+.view{display:none;animation:fi .3s ease}
+.view.active{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ===== SECTION HEADING ===== */
+.sh{font-size:9px;font-family:var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.9rem;display:flex;align-items:center;gap:8px}
+.sh::after{content:'';flex:1;height:.5px;background:var(--faded)}
+
+/* ===== CARDS ===== */
+.card{border:.5px solid var(--faded);margin-bottom:8px;transition:border-color .2s}
+.card:hover{border-color:rgba(184,150,46,.4)}
+
+/* ===== PROCESS CARD ===== */
+.proc{display:grid;grid-template-columns:2.5rem 1fr auto}
+.proc-idx{display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:var(--muted);border-right:.5px solid var(--faded)}
+.proc-body{padding:10px 12px}
+.proc-num{font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:2px}
+.proc-title{font-size:15px;font-weight:400;line-height:1.3;margin-bottom:2px}
+.proc-meta{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.proc-status{padding:0 10px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;border-left:.5px solid var(--faded)}
+.status-dot{width:6px;height:6px;border-radius:50%}
+.dot-red{background:var(--danger)}.dot-amber{background:var(--warn)}.dot-green{background:var(--ok)}
+.prazo-tag{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border:.5px solid;white-space:nowrap}
+.prazo-urgente{border-color:var(--danger);color:var(--danger)}
+.prazo-warn{border-color:var(--warn);color:var(--warn)}
+.prazo-ok{border-color:rgba(10,10,10,.2);color:var(--muted)}
+
+/* ===== DOC GRID ===== */
+.docgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:1.25rem}
+@media(max-width:500px){.docgrid{grid-template-columns:1fr}}
+.doccard{border:.5px solid var(--faded);padding:13px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.doccard::after{content:'';position:absolute;bottom:0;left:0;width:0;height:1.5px;background:var(--gold);transition:width .3s}
+.doccard:hover::after{width:100%}
+.doccard:hover{border-color:rgba(184,150,46,.4);background:rgba(184,150,46,.03)}
+.doc-roman{font-family:var(--mono);font-size:9px;color:var(--gold);margin-bottom:5px;letter-spacing:.08em}
+.doc-name{font-size:14px;font-weight:400;margin-bottom:2px}
+.doc-desc{font-size:10px;color:var(--muted);font-family:var(--mono)}
+
+/* ===== LEDGER ===== */
+.ledger{width:100%;border-collapse:collapse}
+.ledger th{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:6px 0;border-bottom:.5px solid var(--ink);text-align:left}
+.ledger td{padding:8px 0;border-bottom:.5px solid var(--faded);font-size:13px;vertical-align:middle}
+.ledger tr:last-child td{border-bottom:none}
+.amount{font-family:var(--mono);font-size:11px;text-align:right}
+.credit{color:var(--ok)}.debit{color:var(--danger)}.pending{color:var(--warn)}
+.ledger-total{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-top:.5px solid var(--ink);margin-top:3px}
+.lt-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.lt-val{font-size:28px;font-weight:300}
+
+/* ===== CLIENTES ===== */
+.cli-entry{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:11px 0;border-bottom:.5px solid var(--faded)}
+.cli-entry:last-child{border-bottom:none}
+.initials{width:34px;height:34px;border:.5px solid var(--faded);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:var(--muted)}
+.cli-name{font-size:15px;font-weight:400;margin-bottom:1px}
+.cli-area{font-size:10px;font-family:var(--mono);color:var(--muted)}
+.cli-btn{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;border:.5px solid var(--gold);background:none;color:var(--gold);padding:5px 9px;cursor:pointer;transition:all .2s}
+.cli-btn:hover{background:var(--gold);color:var(--paper)}
+
+/* ===== AGENDA ===== */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:1rem}
+.cal-head{font-family:var(--mono);font-size:8px;text-align:center;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;padding:4px 0}
+.cal-day{font-family:var(--mono);font-size:11px;text-align:center;padding:6px 2px;border:.5px solid transparent;cursor:default;position:relative;transition:all .15s}
+.cal-day:hover{border-color:var(--faded);background:rgba(184,150,46,.06)}
+.cal-day.has-event::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gold)}
+.cal-day.today{border-color:var(--gold);color:var(--gold)}
+.cal-day.urgent::after{background:var(--danger)}
+.cal-day.empty{opacity:.2}
+.event-item{display:grid;grid-template-columns:3.5rem 1fr auto;border:.5px solid var(--faded);margin-bottom:6px;transition:border-color .2s}
+.event-item:hover{border-color:rgba(184,150,46,.4)}
+.event-time{font-family:var(--mono);font-size:9px;color:var(--muted);border-right:.5px solid var(--faded);display:flex;align-items:center;justify-content:center;padding:0 6px;text-align:center;line-height:1.4}
+.event-body{padding:8px 11px}
+.event-title{font-size:13px;margin-bottom:1px}
+.event-sub{font-size:10px;font-family:var(--mono);color:var(--muted)}
+.event-badge-wrap{padding:0 10px;display:flex;align-items:center;border-left:.5px solid var(--faded)}
+.ebadge{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border:.5px solid}
+.aud{border-color:var(--ok);color:var(--ok)}.praz{border-color:var(--danger);color:var(--danger)}.reu{border-color:var(--warn);color:var(--warn)}
+
+/* ===== CALCULADORA ===== */
+.calc-form{border:.5px solid var(--faded);padding:1rem;margin-bottom:1rem}
+.calc-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:500px){.calc-row{grid-template-columns:1fr}}
+.calc-field{display:flex;flex-direction:column;gap:4px}
+.calc-label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.calc-input,.calc-select{font-family:var(--mono);font-size:12px;background:var(--paper);border:.5px solid var(--faded);color:var(--ink);padding:7px 9px;width:100%;outline:none;transition:border-color .2s}
+.calc-input:focus,.calc-select:focus{border-color:var(--gold)}
+.calc-btn{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;border:.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:10px 16px;cursor:pointer;width:100%;transition:all .2s}
+.calc-btn:hover{background:var(--gold);border-color:var(--gold)}
+.calc-result{border:.5px solid var(--gold);padding:1rem;background:rgba(184,150,46,.05);display:none;margin-top:.75rem}
+.result-title{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.result-date{font-size:32px;font-weight:300;margin-bottom:.25rem}
+.result-dias{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.result-warning{font-family:var(--mono);font-size:10px;color:var(--danger);margin-top:.5rem}
+
+/* ===== RISCO ===== */
+.risco-result{display:none;margin-top:1rem}
+.risco-pct{font-size:36px;font-weight:300;margin-bottom:.2rem}
+.risco-nivel{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.risco-bar-bg{height:6px;background:var(--faded);margin:8px 0 4px}
+.risco-bar-fill{height:100%;transition:width .6s ease}
+.risco-item{font-size:12px;padding:5px 0;border-bottom:.5px solid var(--faded);display:flex;gap:8px;align-items:baseline}
+.risco-item:last-child{border-bottom:none}
+.risco-bullet{font-family:var(--mono);font-size:9px;color:var(--gold);flex-shrink:0}
+
+/* ===== ANÁLISE DE PEÇAS ===== */
+.type-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:1rem}
+@media(max-width:500px){.type-grid{grid-template-columns:repeat(2,1fr)}}
+.tcard{border:.5px solid var(--faded);padding:10px 6px;text-align:center;cursor:pointer;transition:all .2s}
+.tcard:hover,.tcard.sel{border-color:var(--gold);background:rgba(184,150,46,.06)}
+.tcard-icon{font-size:20px;margin-bottom:5px;display:block;opacity:.5}
+.tcard.sel .tcard-icon{opacity:1}
+.tcard-label{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lex-textarea{width:100%;min-height:150px;background:var(--paper);border:.5px solid var(--faded);color:var(--ink);font-family:var(--mono);font-size:11px;line-height:1.65;padding:10px 12px;outline:none;resize:vertical;transition:border-color .2s}
+.lex-textarea:focus{border-color:var(--gold)}
+.lex-textarea::placeholder{color:var(--muted);font-style:italic}
+.action-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:.75rem}
+.act-btn{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;border:.5px solid var(--faded);background:transparent;color:var(--muted);padding:10px 4px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:4px}
+.act-btn:hover{border-color:var(--ink);color:var(--ink)}
+.act-btn.primary{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.act-btn.primary:hover{border-color:var(--gold);background:var(--gold)}
+.act-icon{font-size:15px;opacity:.8}
+.loading-bar{height:2px;background:var(--faded);margin:1rem 0;display:none;overflow:hidden;position:relative}
+.loading-bar.show{display:block}
+.loading-fill{position:absolute;top:0;left:-40%;width:40%;height:100%;background:var(--gold);animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{to{left:100%}}
+.result-panel{margin-top:1.25rem;display:none}
+.result-panel.show{display:block}
+.res-card{border:.5px solid var(--faded);margin-bottom:8px}
+.res-header{padding:9px 12px;border-bottom:.5px solid var(--faded);display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.res-header:hover{background:rgba(184,150,46,.04)}
+.res-title{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.res-badge{font-family:var(--mono);font-size:8px;padding:2px 7px;border:.5px solid}
+.res-body{padding:12px;font-size:13px;line-height:1.75;display:block}
+.res-toggle{font-family:var(--mono);font-size:10px;color:var(--gold)}
+.stream-box{background:rgba(184,150,46,.03);border:.5px solid rgba(184,150,46,.2);padding:12px;font-size:12px;line-height:1.8;font-family:var(--mono);color:var(--ink);min-height:60px;white-space:pre-wrap;word-break:break-word}
+.cursor-blink{display:inline-block;width:7px;height:12px;background:var(--gold);vertical-align:middle;animation:blink .7s step-end infinite;margin-left:2px}
+@keyframes blink{50%{opacity:0}}
+.tag-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:.75rem}
+.tag{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border:.5px solid var(--faded);color:var(--muted)}
+.tag.ok{border-color:var(--ok);color:var(--ok)}.tag.gold{border-color:var(--gold);color:var(--gold)}
+.arg-card{border:.5px solid var(--faded);margin-bottom:6px;transition:border-color .2s}
+.arg-card:hover{border-color:rgba(184,150,46,.4)}
+.arg-header{display:grid;grid-template-columns:2rem 1fr auto;gap:0}
+.arg-num{font-family:var(--mono);font-size:10px;color:var(--gold);border-right:.5px solid var(--faded);display:flex;align-items:center;justify-content:center;padding:0 6px}
+.arg-body{padding:9px 11px}
+.arg-title{font-size:14px;font-weight:400;margin-bottom:2px}
+.arg-base{font-size:10px;font-family:var(--mono);color:var(--muted)}
+.arg-expand{padding:0 10px;display:flex;align-items:center;border-left:.5px solid var(--faded)}
+.expand-btn{font-family:var(--mono);font-size:9px;color:var(--gold);border:none;background:none;cursor:pointer}
+.arg-detail{padding:0 11px 10px;font-size:12px;line-height:1.7;color:var(--muted);display:none;border-top:.5px solid var(--faded);padding-top:9px}
+.arg-detail.show{display:block}
+.saved-item{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:.5px solid var(--faded)}
+.saved-item:last-child{border-bottom:none}
+.saved-icon{width:32px;height:32px;border:.5px solid var(--faded);display:flex;align-items:center;justify-content:center;font-size:14px}
+.saved-title{font-size:13px;font-weight:400}
+.saved-sub{font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:1px}
+.s-btn{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;border:.5px solid var(--faded);background:none;color:var(--muted);padding:4px 8px;cursor:pointer;transition:all .2s}
+.s-btn:hover{border-color:var(--gold);color:var(--gold)}
+.s-btn.primary{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.s-btn.primary:hover{background:var(--gold);border-color:var(--gold)}
+
+/* ===== IA PROMPT ===== */
+.ia-prompt{border:.5px solid var(--faded);padding:11px 14px;margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:all .2s}
+.ia-prompt:hover{border-color:var(--gold);background:rgba(184,150,46,.04)}
+.ia-label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.ia-text{font-size:13px;font-style:italic}
+.ia-arrow{font-family:var(--mono);font-size:16px;color:var(--gold)}
+
+/* ===== FOOTER ===== */
+.footer{border-top:.5px solid var(--faded);margin-top:3rem;padding-top:1rem;text-align:center}
+.footer-text{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.footer-sub{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:4px;font-style:italic}
+
+/* ===== MODAL ===== */
+.modal-bg{position:fixed;inset:0;background:rgba(10,10,10,.6);z-index:100;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.show{display:flex}
+.modal{background:var(--paper);border:.5px solid var(--faded);max-width:560px;width:100%;padding:1.5rem;position:relative;max-height:80vh;overflow-y:auto}
+.modal-close{position:absolute;top:12px;right:14px;font-family:var(--mono);font-size:11px;cursor:pointer;color:var(--muted);border:none;background:none}
+.modal-close:hover{color:var(--ink)}
+.modal-title{font-size:18px;font-weight:400;margin-bottom:.5rem}
+.modal-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:1.25rem}
+
+/* ===== UTILITIES ===== */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:500px){.two-col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="wordmark"><span>Lex</span>OS · Gestão Jurídica com IA</div>
+    <div class="datestamp" id="ds"></div>
+  </header>
+
+  <!-- API KEY BANNER -->
+  <div class="api-banner">
+    <div class="api-banner-label">⚙ Chave de API</div>
+    <input class="api-input" type="password" id="api-key-input" placeholder="Cole sua chave Anthropic: sk-ant-..." autocomplete="off">
+    <button class="api-save-btn" onclick="salvarChave()">Salvar</button>
+    <span class="api-status" id="api-status" style="display:none">✓ Chave salva</span>
+  </div>
+
+  <!-- SCORES -->
+  <div class="score-row">
+    <div class="sc"><div class="sc-num ok">24</div><div class="sc-label">Clientes</div></div>
+    <div class="sc"><div class="sc-num">37</div><div class="sc-label">Processos</div></div>
+    <div class="sc"><div class="sc-num danger">5</div><div class="sc-label">Prazos</div></div>
+    <div class="sc"><div class="sc-num warn">R$4k</div><div class="sc-label">Em atraso</div></div>
+    <div class="sc"><div class="sc-num ok">3</div><div class="sc-label">Audiências</div></div>
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav-strip">
+    <button class="npill active" onclick="nav('processos',this)">Processos</button>
+    <button class="npill" onclick="nav('agenda',this)">Agenda</button>
+    <button class="npill" onclick="nav('prazos',this)">Prazos</button>
+    <button class="npill" onclick="nav('analise',this)">Análise IA</button>
+    <button class="npill" onclick="nav('argumentos',this)">Argumentos</button>
+    <button class="npill" onclick="nav('confrontar',this)">Confrontar</button>
+    <button class="npill" onclick="nav('documentos',this)">Documentos</button>
+    <button class="npill" onclick="nav('clientes',this)">Clientes</button>
+    <button class="npill" onclick="nav('financeiro',this)">Financeiro</button>
+    <button class="npill" onclick="nav('risco',this)">Risco</button>
+  </nav>
+
+  <!-- ============ PROCESSOS ============ -->
+  <div class="view active" id="v-processos">
+    <div class="sh">Em andamento</div>
+    <div class="card proc"><div class="proc-idx">I</div><div class="proc-body"><div class="proc-num">1001234-55.2024.8.26.0100 · TJ-SP</div><div class="proc-title">Silva <em>vs.</em> Banco Bradesco</div><div class="proc-meta">Indenização por danos morais · Contestação</div></div><div class="proc-status"><div class="status-dot dot-red"></div><div class="prazo-tag prazo-urgente">2 dias</div></div></div>
+    <div class="card proc"><div class="proc-idx">II</div><div class="proc-body"><div class="proc-num">0005678-99.2023.5.02.0001 · TRT-2</div><div class="proc-title">Almeida <em>vs.</em> Empresa XYZ</div><div class="proc-meta">Reclamação trabalhista · Recurso ordinário</div></div><div class="proc-status"><div class="status-dot dot-amber"></div><div class="prazo-tag prazo-warn">5 dias</div></div></div>
+    <div class="card proc"><div class="proc-idx">III</div><div class="proc-body"><div class="proc-num">0009981-12.2024.8.19.0001 · TJRJ</div><div class="proc-title">Empresa ABC Ltda. <em>vs.</em> Fornecedor</div><div class="proc-meta">Revisão contratual · Audiência de instrução</div></div><div class="proc-status"><div class="status-dot dot-green"></div><div class="prazo-tag prazo-ok">8 dias</div></div></div>
+    <div class="card proc"><div class="proc-idx">IV</div><div class="proc-body"><div class="proc-num">0034512-77.2024.8.26.0053 · TJ-SP</div><div class="proc-title">Costa <em>vs.</em> Construtora Ômega</div><div class="proc-meta">Direito do consumidor · Fase inicial</div></div><div class="proc-status"><div class="status-dot dot-green"></div><div class="prazo-tag prazo-ok">15 dias</div></div></div>
+    <div class="ia-prompt" onclick="abrirIA('Elaborar minuta de contestação para ação de indenização por danos morais ajuizada contra banco, com fundamentos no CDC e súmulas do STJ')"><div><div class="ia-label">IA · Gerar peça processual</div><div class="ia-text">"Elaborar contestação de Silva vs. Bradesco"</div></div><div class="ia-arrow">→</div></div>
+  </div>
+
+  <!-- ============ AGENDA ============ -->
+  <div class="view" id="v-agenda">
+    <div class="sh">Maio · 2025</div>
+    <div class="cal-grid">
+      <div class="cal-head">Dom</div><div class="cal-head">Seg</div><div class="cal-head">Ter</div><div class="cal-head">Qua</div><div class="cal-head">Qui</div><div class="cal-head">Sex</div><div class="cal-head">Sáb</div>
+      <div class="cal-day empty"></div><div class="cal-day empty"></div><div class="cal-day empty"></div><div class="cal-day">1</div><div class="cal-day">2</div><div class="cal-day">3</div><div class="cal-day">4</div>
+      <div class="cal-day">5</div><div class="cal-day">6</div><div class="cal-day">7</div><div class="cal-day">8</div><div class="cal-day">9</div><div class="cal-day">10</div><div class="cal-day">11</div>
+      <div class="cal-day">12</div><div class="cal-day today">13</div><div class="cal-day urgent has-event">14</div><div class="cal-day">15</div><div class="cal-day has-event">16</div><div class="cal-day">17</div><div class="cal-day has-event">18</div>
+      <div class="cal-day">19</div><div class="cal-day has-event">20</div><div class="cal-day has-event">21</div><div class="cal-day">22</div><div class="cal-day">23</div><div class="cal-day">24</div><div class="cal-day">25</div>
+      <div class="cal-day">26</div><div class="cal-day">27</div><div class="cal-day">28</div><div class="cal-day">29</div><div class="cal-day">30</div><div class="cal-day">31</div><div class="cal-day empty"></div>
+    </div>
+    <div class="sh">Próximos eventos</div>
+    <div class="event-item"><div class="event-time">14 Mai<br>09h00</div><div class="event-body"><div class="event-title">Audiência de conciliação</div><div class="event-sub">Silva vs. Bradesco · 2ª Vara Cível TJ-SP</div></div><div class="event-badge-wrap"><span class="ebadge aud">Audiência</span></div></div>
+    <div class="event-item"><div class="event-time">14 Mai<br>23h59</div><div class="event-body"><div class="event-title">Prazo — Contestação</div><div class="event-sub">Silva vs. Bradesco · Protocolo digital</div></div><div class="event-badge-wrap"><span class="ebadge praz">Urgente</span></div></div>
+    <div class="event-item"><div class="event-time">16 Mai<br>14h00</div><div class="event-body"><div class="event-title">Reunião com cliente</div><div class="event-sub">Empresa ABC Ltda. · Estratégia contratual</div></div><div class="event-badge-wrap"><span class="ebadge reu">Reunião</span></div></div>
+    <div class="event-item"><div class="event-time">18 Mai<br>10h30</div><div class="event-body"><div class="event-title">Audiência de instrução</div><div class="event-sub">ABC vs. Fornecedor · TJRJ</div></div><div class="event-badge-wrap"><span class="ebadge aud">Audiência</span></div></div>
+    <div class="ia-prompt" onclick="abrirIA('Preparar roteiro completo e argumentos para audiência de conciliação de Silva vs. Bradesco, com estratégia de negociação e pontos-chave')"><div><div class="ia-label">IA · Preparar audiência</div><div class="ia-text">"Roteiro estratégico para audiência de amanhã"</div></div><div class="ia-arrow">→</div></div>
+  </div>
+
+  <!-- ============ PRAZOS ============ -->
+  <div class="view" id="v-prazos">
+    <div class="sh">Calculadora processual</div>
+    <div class="calc-form">
+      <div class="calc-row">
+        <div class="calc-field"><div class="calc-label">Data de início</div><input class="calc-input" type="date" id="prazo-inicio"></div>
+        <div class="calc-field"><div class="calc-label">Tipo de prazo</div>
+          <select class="calc-select" id="prazo-tipo">
+            <option value="15">Contestação — 15 dias úteis</option>
+            <option value="8">Recurso ordinário — 8 dias</option>
+            <option value="15">Apelação — 15 dias</option>
+            <option value="5">Embargos de declaração — 5 dias</option>
+            <option value="15">Agravo regimental — 15 dias</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </div>
+      </div>
+      <div class="calc-row" id="custom-row" style="display:none">
+        <div class="calc-field"><div class="calc-label">Dias úteis</div><input class="calc-input" type="number" id="prazo-custom" placeholder="Ex: 10" min="1"></div>
+      </div>
+      <button class="calc-btn" onclick="calcPrazo()">Calcular prazo fatal</button>
+      <div class="calc-result" id="calc-result">
+        <div class="result-title">Prazo fatal</div>
+        <div class="result-date" id="result-date">—</div>
+        <div class="result-dias" id="result-dias"></div>
+        <div class="result-warning" id="result-warning"></div>
+      </div>
+    </div>
+    <div class="sh">Prazos ativos</div>
+    <div class="card proc"><div class="proc-idx" style="font-size:8px">TJ-SP</div><div class="proc-body"><div class="proc-num">Contestação · Silva vs. Bradesco</div><div class="proc-title" style="font-size:13px">Vence 14/05/2025</div></div><div class="proc-status"><div class="prazo-tag prazo-urgente">2 dias</div></div></div>
+    <div class="card proc"><div class="proc-idx" style="font-size:8px">TRT-2</div><div class="proc-body"><div class="proc-num">Recurso ordinário · Almeida vs. XYZ</div><div class="proc-title" style="font-size:13px">Vence 17/05/2025</div></div><div class="proc-status"><div class="prazo-tag prazo-warn">5 dias</div></div></div>
+    <div class="card proc"><div class="proc-idx" style="font-size:8px">TJRJ</div><div class="proc-body"><div class="proc-num">Razões finais · ABC vs. Fornecedor</div><div class="proc-title" style="font-size:13px">Vence 21/05/2025</div></div><div class="proc-status"><div class="prazo-tag prazo-ok">9 dias</div></div></div>
+  </div>
+
+  <!-- ============ ANÁLISE IA ============ -->
+  <div class="view" id="v-analise">
+    <div class="sh">Tipo de documento</div>
+    <div class="type-grid">
+      <div class="tcard sel" onclick="selType(this,'Petição inicial')"><span class="tcard-icon">📄</span><div class="tcard-label">Petição inicial</div></div>
+      <div class="tcard" onclick="selType(this,'Contestação')"><span class="tcard-icon">⚖️</span><div class="tcard-label">Contestação</div></div>
+      <div class="tcard" onclick="selType(this,'Sentença / Acórdão')"><span class="tcard-icon">🏛️</span><div class="tcard-label">Sentença</div></div>
+      <div class="tcard" onclick="selType(this,'Autos do processo')"><span class="tcard-icon">📁</span><div class="tcard-label">Autos</div></div>
+    </div>
+    <div class="sh">Cole o texto da peça</div>
+    <textarea class="lex-textarea" id="peca-texto" placeholder="Cole aqui o texto da petição, sentença, acórdão ou autos… O sistema irá resumir, extrair os pontos críticos e gerar argumentos estratégicos."></textarea>
+    <div class="action-row">
+      <button class="act-btn" onclick="analisar('resumo')"><span class="act-icon">📝</span>Resumir</button>
+      <button class="act-btn" onclick="analisar('pontos')"><span class="act-icon">🔍</span>Pontos críticos</button>
+      <button class="act-btn primary" onclick="analisar('completo')"><span class="act-icon">⚡</span>Análise completa</button>
+    </div>
+    <div class="loading-bar" id="loading"><div class="loading-fill"></div></div>
+    <div class="result-panel" id="result-panel">
+      <div class="sh">Resultado</div>
+      <div class="res-card" id="card-resumo" style="display:none"><div class="res-header" onclick="toggle('body-resumo','tog-resumo')"><div class="res-title">Resumo executivo</div><div style="display:flex;gap:8px;align-items:center"><span class="res-badge" style="border-color:var(--gold);color:var(--gold)" id="tipo-badge">Petição inicial</span><span class="res-toggle" id="tog-resumo">▾</span></div></div><div class="res-body" id="body-resumo"><div class="stream-box" id="stream-resumo"></div></div></div>
+      <div class="res-card" id="card-pontos" style="display:none"><div class="res-header" onclick="toggle('body-pontos','tog-pontos')"><div class="res-title">Pontos críticos</div><span class="res-toggle" id="tog-pontos">▾</span></div><div class="res-body" id="body-pontos"><div class="stream-box" id="stream-pontos"></div></div></div>
+      <div class="res-card" id="card-args" style="display:none"><div class="res-header" onclick="toggle('body-args','tog-args')"><div class="res-title">Argumentos sugeridos</div><span class="res-toggle" id="tog-args">▾</span></div><div class="res-body" id="body-args"><div class="stream-box" id="stream-args"></div></div></div>
+      <div id="tags-row" class="tag-row" style="display:none"></div>
+    </div>
+    <div class="sh" style="margin-top:1.5rem">Peças de exemplo</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="s-btn" onclick="carregarExemplo('silva')">Petição — Silva vs. Bradesco</button>
+      <button class="s-btn" onclick="carregarExemplo('almeida')">Sentença — Almeida vs. XYZ</button>
+      <button class="s-btn" onclick="carregarExemplo('abc')">Autos — ABC vs. Fornecedor</button>
+    </div>
+  </div>
+
+  <!-- ============ ARGUMENTOS ============ -->
+  <div class="view" id="v-argumentos">
+    <div class="sh">Gerador de argumentos jurídicos</div>
+    <div class="two-col" style="margin-bottom:.75rem">
+      <div class="calc-field"><div class="calc-label">Área do direito</div>
+        <select class="calc-select" id="arg-area">
+          <option>Direito do consumidor</option><option>Direito trabalhista</option><option>Direito civil — indenização</option><option>Direito previdenciário</option><option>Direito empresarial</option><option>Direito de família</option>
+        </select>
+      </div>
+      <div class="calc-field"><div class="calc-label">Tipo de peça</div>
+        <select class="calc-select" id="arg-peca">
+          <option>Petição inicial</option><option>Contestação</option><option>Recurso ordinário</option><option>Apelação</option><option>Embargos</option><option>Memoriais</option>
+        </select>
+      </div>
+    </div>
+    <textarea class="lex-textarea" id="arg-contexto" style="min-height:100px" placeholder="Descreva o caso: fatos, pedidos, posição do cliente, o que deseja argumentar…"></textarea>
+    <button class="calc-btn" style="margin-top:.75rem" onclick="gerarArgumentos()">⚡ Gerar argumentos com IA</button>
+    <div class="loading-bar" id="loading-args"><div class="loading-fill"></div></div>
+    <div id="args-output" style="display:none;margin-top:1rem">
+      <div class="sh">Argumentos gerados</div>
+      <div id="args-list"></div>
+      <div class="ia-prompt" id="ia-desenvolver" style="display:none">
+        <div><div class="ia-label">IA · Desenvolver em peça</div><div class="ia-text" id="ia-dev-text">"Redigir a peça completa com estes argumentos"</div></div>
+        <div class="ia-arrow">→</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CONFRONTAR ============ -->
+  <div class="view" id="v-confrontar">
+    <div class="sh">Confrontar peças</div>
+    <p style="font-size:13px;color:var(--muted);font-style:italic;margin-bottom:1rem;line-height:1.65">Cole a peça do adversário e sua defesa. A IA identifica os pontos frágeis do oponente e sugere como rebatê-los.</p>
+    <div class="two-col" style="margin-bottom:.75rem">
+      <div>
+        <div class="sh">Peça do adversário</div>
+        <textarea class="lex-textarea" id="peca-adv" style="min-height:130px" placeholder="Cole a petição, recurso ou manifestação da parte contrária…"></textarea>
+      </div>
+      <div>
+        <div class="sh">Sua defesa (opcional)</div>
+        <textarea class="lex-textarea" id="peca-def" style="min-height:130px" placeholder="Cole sua contestação ou contrarrazões atuais…"></textarea>
+      </div>
+    </div>
+    <button class="calc-btn" onclick="confrontar()">⚔️ Confrontar e identificar pontos fracos</button>
+    <div class="loading-bar" id="loading-conf"><div class="loading-fill"></div></div>
+    <div id="conf-output" style="display:none;margin-top:1rem">
+      <div class="sh">Análise de confronto</div>
+      <div class="stream-box" id="stream-conf"></div>
+      <div class="ia-prompt" style="margin-top:.75rem" id="ia-conf-btn">
+        <div><div class="ia-label">IA · Desenvolver réplica</div><div class="ia-text">"Redigir réplica ou contrarrazões completas"</div></div>
+        <div class="ia-arrow">→</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DOCUMENTOS ============ -->
+  <div class="view" id="v-documentos">
+    <div class="sh">Biblioteca de modelos</div>
+    <div class="docgrid">
+      <div class="doccard" onclick="abrirIA('Gerar contrato de honorários advocatícios completo para pessoa física, com cláusula de êxito de 20%, risco da demanda e forma de pagamento parcelado')"><div class="doc-roman">I</div><div class="doc-name">Contrato de honorários</div><div class="doc-desc">PF · PJ · Êxito</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar petição inicial completa para ação de indenização por danos morais e materiais, com pedido de tutela de urgência e valor da causa')"><div class="doc-roman">II</div><div class="doc-name">Petição inicial</div><div class="doc-desc">Cível · Trabalhista</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar razões de recurso ordinário trabalhista sobre horas extras, adicional noturno e verbas rescisórias')"><div class="doc-roman">III</div><div class="doc-name">Recurso ordinário</div><div class="doc-desc">Trabalhista · TRT</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar procuração ad judicia et extra com poderes gerais e especiais, incluindo poderes para transigir e receber')"><div class="doc-roman">IV</div><div class="doc-name">Procuração</div><div class="doc-desc">Ad judicia · Ad negotia</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar notificação extrajudicial para cobrança de dívida com prazo de 10 dias e advertência de medidas judiciais')"><div class="doc-roman">V</div><div class="doc-name">Notificação extrajudicial</div><div class="doc-desc">Cobrança · Interpelação</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar acordo extrajudicial de quitação de dívida com parcelamento em 6 vezes e cláusula de confissão de dívida')"><div class="doc-roman">VI</div><div class="doc-name">Acordo extrajudicial</div><div class="doc-desc">Quitação · Parcelamento</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar parecer jurídico completo sobre responsabilidade civil contratual com análise doutrinária e jurisprudencial do STJ')"><div class="doc-roman">VII</div><div class="doc-name">Parecer jurídico</div><div class="doc-desc">Doutrina · STJ</div></div>
+      <div class="doccard" onclick="abrirIA('Gerar contrato de prestação de serviços jurídicos para empresa com cláusula de confidencialidade e sigilo profissional')"><div class="doc-roman">VIII</div><div class="doc-name">Contrato empresarial</div><div class="doc-desc">PJ · Confidencialidade</div></div>
+    </div>
+  </div>
+
+  <!-- ============ CLIENTES ============ -->
+  <div class="view" id="v-clientes">
+    <div class="sh">Carteira ativa</div>
+    <div class="cli-entry"><div class="initials">MS</div><div><div class="cli-name">Maria Silva</div><div class="cli-area">Trabalhista · 3 processos · Ativo</div></div><button class="cli-btn" onclick="abrirIA('Resumo completo da cliente Maria Silva: processos, honorários, próximos prazos e comunicados pendentes')">Dossiê →</button></div>
+    <div class="cli-entry"><div class="initials">JA</div><div><div class="cli-name">João Almeida</div><div class="cli-area">Trabalhista · 1 processo · Ativo</div></div><button class="cli-btn" onclick="abrirIA('Elaborar comunicado ao cliente João Almeida sobre o andamento do recurso ordinário trabalhista em linguagem acessível')">Dossiê →</button></div>
+    <div class="cli-entry"><div class="initials">AB</div><div><div class="cli-name">Empresa ABC Ltda.</div><div class="cli-area">Empresarial · 5 processos · PJ</div></div><button class="cli-btn" onclick="abrirIA('Relatório executivo para a Empresa ABC sobre todos os processos, riscos estimados e recomendações estratégicas')">Dossiê →</button></div>
+    <div class="cli-entry"><div class="initials">RC</div><div><div class="cli-name">Roberto Costa</div><div class="cli-area">Previdenciário · 2 processos · Em atraso</div></div><button class="cli-btn" onclick="abrirIA('Mensagem delicada de cobrança de honorários em atraso para o cliente Roberto Costa, mantendo o relacionamento')">Dossiê →</button></div>
+    <div class="cli-entry"><div class="initials">LC</div><div><div class="cli-name">Luciana Cardoso</div><div class="cli-area">Cível · 1 processo · Novo</div></div><button class="cli-btn" onclick="abrirIA('Checklist de documentos necessários para novo cliente em ação de indenização por acidente de trânsito')">Dossiê →</button></div>
+  </div>
+
+  <!-- ============ FINANCEIRO ============ -->
+  <div class="view" id="v-financeiro">
+    <div class="sh">Livro-caixa · Maio 2025</div>
+    <table class="ledger">
+      <thead><tr><th>Cliente</th><th>Descrição</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>
+        <tr><td>M. Silva</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Honorários — trabalhista</td><td class="amount credit">+ R$8.000</td></tr>
+        <tr><td>Emp. ABC</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Honorários — contencioso</td><td class="amount credit">+ R$12.000</td></tr>
+        <tr><td>J. Almeida</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Honorários — parcela 2/3</td><td class="amount credit">+ R$3.500</td></tr>
+        <tr><td>L. Cardoso</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Honorários iniciais</td><td class="amount credit">+ R$2.500</td></tr>
+        <tr><td>R. Costa</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Em aberto — vencido</td><td class="amount pending">⟳ R$4.000</td></tr>
+        <tr><td>Escritório</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Custas processuais</td><td class="amount debit">− R$1.200</td></tr>
+        <tr><td>Escritório</td><td style="font-size:10px;color:var(--muted);font-family:var(--mono)">Aluguel sala</td><td class="amount debit">− R$3.500</td></tr>
+      </tbody>
+    </table>
+    <div class="ledger-total"><div class="lt-label">Saldo líquido</div><div class="lt-val">R$ 21.300</div></div>
+    <div class="two-col" style="margin-top:1rem">
+      <div class="ia-prompt" style="margin-top:0" onclick="abrirIA('Gerar recibo de honorários advocatícios com todos os dados legais necessários para emissão fiscal')"><div><div class="ia-label">Recibo</div><div class="ia-text">"Gerar recibo de honorários"</div></div><div class="ia-arrow">→</div></div>
+      <div class="ia-prompt" style="margin-top:0" onclick="abrirIA('Mensagem profissional de cobrança de honorários em atraso para enviar por WhatsApp, tom firme mas respeitoso')"><div><div class="ia-label">Cobrança</div><div class="ia-text">"Mensagem WhatsApp de cobrança"</div></div><div class="ia-arrow">→</div></div>
+    </div>
+    <div class="ia-prompt" onclick="abrirIA('Relatório financeiro completo do escritório de maio 2025: análise de receitas, inadimplência, despesas e projeção para junho')"><div><div class="ia-label">IA · Relatório mensal</div><div class="ia-text">"Relatório financeiro com projeção para junho"</div></div><div class="ia-arrow">→</div></div>
+  </div>
+
+  <!-- ============ RISCO ============ -->
+  <div class="view" id="v-risco">
+    <div class="sh">Análise de risco processual</div>
+    <div class="calc-form">
+      <div class="calc-row">
+        <div class="calc-field"><div class="calc-label">Área do direito</div>
+          <select class="calc-select" id="r-area"><option value="consumidor">Direito do consumidor</option><option value="trabalho">Trabalhista</option><option value="civil">Cível — indenização</option><option value="previdenciario">Previdenciário</option><option value="empresarial">Empresarial</option></select>
+        </div>
+        <div class="calc-field"><div class="calc-label">Posição do cliente</div>
+          <select class="calc-select" id="r-posicao"><option value="autor">Autor</option><option value="reu">Réu</option></select>
+        </div>
+      </div>
+      <div class="calc-row">
+        <div class="calc-field"><div class="calc-label">Fase processual</div>
+          <select class="calc-select" id="r-fase"><option value="inicial">Fase inicial</option><option value="instrucao">Instrução</option><option value="sentenca">Pós-sentença</option><option value="recurso">Recurso</option></select>
+        </div>
+        <div class="calc-field"><div class="calc-label">Força das provas</div>
+          <select class="calc-select" id="r-prova"><option value="forte">Forte — documentos e testemunhas</option><option value="media">Média — provas parciais</option><option value="fraca">Fraca — apenas alegações</option></select>
+        </div>
+      </div>
+      <button class="calc-btn" onclick="calcRisco()">Calcular perfil de risco</button>
+    </div>
+    <div class="risco-result" id="risco-result">
+      <div class="sh">Perfil de risco</div>
+      <div class="risco-pct" id="r-pct">—</div>
+      <div class="risco-nivel" id="r-nivel"></div>
+      <div class="risco-bar-bg"><div class="risco-bar-fill" id="r-bar"></div></div>
+      <div id="r-fatores" style="margin-top:.75rem"></div>
+      <div class="ia-prompt" style="margin-top:1rem" id="ia-risco-btn"><div><div class="ia-label">IA · Estratégia</div><div class="ia-text" id="r-ia-text">"Analisar estratégia para este perfil"</div></div><div class="ia-arrow">→</div></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-text">LexOS · Sistema de Gestão Jurídica com IA</div>
+    <div class="footer-sub">Desenvolvido com Claude (Anthropic) · Uso interno do escritório</div>
+  </footer>
+</div>
+
+<!-- ===== MODAL IA ===== -->
+<div class="modal-bg" id="modal-bg" onclick="fecharModal(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="fecharModal(null,true)">✕ fechar</button>
+    <div class="modal-title">Assistente Jurídico IA</div>
+    <div class="modal-sub" id="modal-prompt-preview"></div>
+    <div class="loading-bar show" id="modal-loading"><div class="loading-fill"></div></div>
+    <div class="stream-box" id="modal-stream" style="min-height:120px;max-height:400px;overflow-y:auto"></div>
+    <div style="margin-top:.75rem;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="s-btn primary" onclick="copiarModal()">Copiar texto</button>
+      <button class="s-btn" onclick="fecharModal(null,true)">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== INIT ===== */
+const months=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const d=new Date();
+document.getElementById('ds').textContent=d.getDate()+' de '+months[d.getMonth()]+' de '+d.getFullYear();
+document.getElementById('prazo-inicio').valueAsDate=d;
+
+let apiKey=localStorage.getItem('lexos_api_key')||'';
+if(apiKey){document.getElementById('api-key-input').value=apiKey;document.getElementById('api-status').style.display='inline';}
+
+function salvarChave(){
+  apiKey=document.getElementById('api-key-input').value.trim();
+  localStorage.setItem('lexos_api_key',apiKey);
+  const s=document.getElementById('api-status');
+  s.style.display='inline';
+  setTimeout(()=>s.style.display='none',3000);
+}
+
+/* ===== NAV ===== */
+function nav(id,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.npill').forEach(b=>b.classList.remove('active'));
+  document.getElementById('v-'+id).classList.add('active');
+  if(btn)btn.classList.add('active');
+}
+
+/* ===== CLAUDE API ===== */
+async function callClaude(prompt){
+  const key=apiKey||localStorage.getItem('lexos_api_key')||'';
+  if(!key){throw new Error('Configure sua chave de API Anthropic no campo acima.');}
+  const r=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+  });
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Erro na API');}
+  const data=await r.json();
+  return data.content.map(i=>i.text||'').join('');
+}
+
+async function streamToEl(elId,text,delay=8){
+  const el=document.getElementById(elId);
+  el.innerHTML='';
+  for(let i=0;i<text.length;i++){
+    el.textContent+=text[i];
+    if(i%4===0)await new Promise(r=>setTimeout(r,delay));
+  }
+}
+
+function setLoading(id,on){
+  const el=document.getElementById(id);
+  if(el)el.style.display=on?'block':'none';
+}
+
+/* ===== MODAL IA ===== */
+async function abrirIA(prompt){
+  const bg=document.getElementById('modal-bg');
+  bg.classList.add('show');
+  document.getElementById('modal-prompt-preview').textContent=prompt.substring(0,80)+'…';
+  document.getElementById('modal-stream').textContent='';
+  document.getElementById('modal-loading').style.display='block';
+  try{
+    const sys='Você é um advogado sênior brasileiro especialista. Responda em português com linguagem jurídica precisa e profissional.';
+    const res=await callClaude(sys+'\n\n'+prompt);
+    document.getElementById('modal-loading').style.display='none';
+    await streamToEl('modal-stream',res);
+  }catch(e){
+    document.getElementById('modal-loading').style.display='none';
+    document.getElementById('modal-stream').textContent='Erro: '+e.message;
+  }
+}
+
+function fecharModal(e,force){
+  if(force||e.target===document.getElementById('modal-bg'))
+    document.getElementById('modal-bg').classList.remove('show');
+}
+
+function copiarModal(){
+  const txt=document.getElementById('modal-stream').textContent;
+  navigator.clipboard.writeText(txt).then(()=>alert('Texto copiado!'));
+}
+
+/* ===== ANÁLISE ===== */
+let tipoAtual='Petição inicial';
+function selType(el,tipo){
+  document.querySelectorAll('.tcard').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');tipoAtual=tipo;
+}
+function toggle(bId,tId){
+  const b=document.getElementById(bId);const t=document.getElementById(tId);
+  const open=b.style.display!=='none';b.style.display=open?'none':'block';t.textContent=open?'▸':'▾';
+}
+
+async function analisar(modo){
+  const texto=document.getElementById('peca-texto').value.trim();
+  if(!texto||texto.length<30){alert('Cole o texto da peça (mín. 30 caracteres).');return;}
+  setLoading('loading',true);
+  document.getElementById('result-panel').classList.add('show');
+  ['card-resumo','card-pontos','card-args'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('tags-row').style.display='none';
+  document.getElementById('tipo-badge').textContent=tipoAtual;
+  const sys='Você é um advogado sênior brasileiro especialista em análise processual. Responda em português com linguagem jurídica precisa.';
+  try{
+    if(modo==='resumo'||modo==='completo'){
+      document.getElementById('card-resumo').style.display='block';
+      document.getElementById('stream-resumo').textContent='';
+      const res=await callClaude(sys+'\n\nAnalise este '+tipoAtual+' e forneça RESUMO EXECUTIVO (3-4 parágrafos): partes, objeto, pedidos, fundamentos e situação atual.\n\n'+texto.substring(0,3000));
+      await streamToEl('stream-resumo',res);
+    }
+    if(modo==='pontos'||modo==='completo'){
+      document.getElementById('card-pontos').style.display='block';
+      document.getElementById('stream-pontos').textContent='';
+      const res=await callClaude(sys+'\n\nAnalise este '+tipoAtual+' e liste 4-6 PONTOS CRÍTICOS: vulnerabilidades jurídicas, falhas de fundamentação, riscos processuais, questões de nulidade.\n\n'+texto.substring(0,3000));
+      await streamToEl('stream-pontos',res);
+    }
+    if(modo==='completo'){
+      document.getElementById('card-args').style.display='block';
+      document.getElementById('stream-args').textContent='';
+      const res=await callClaude(sys+'\n\nCom base neste '+tipoAtual+', sugira 4 ARGUMENTOS JURÍDICOS ESTRATÉGICOS para a resposta. Para cada um: título, fundamento legal (artigos, súmulas STJ/STF) e como desenvolver.\n\n'+texto.substring(0,3000));
+      await streamToEl('stream-args',res);
+    }
+    document.getElementById('tags-row').style.display='flex';
+    document.getElementById('tags-row').innerHTML='<span class="tag gold">'+tipoAtual+'</span><span class="tag ok">Analisado por IA</span>';
+  }catch(e){
+    document.getElementById('card-resumo').style.display='block';
+    document.getElementById('stream-resumo').textContent='Erro: '+e.message;
+  }
+  setLoading('loading',false);
+}
+
+/* ===== ARGUMENTOS ===== */
+let ultimosArgs='';
+async function gerarArgumentos(){
+  const area=document.getElementById('arg-area').value;
+  const peca=document.getElementById('arg-peca').value;
+  const ctx=document.getElementById('arg-contexto').value.trim();
+  if(!ctx||ctx.length<20){alert('Descreva o caso.');return;}
+  setLoading('loading-args',true);
+  document.getElementById('args-output').style.display='none';
+  const prompt='Você é um advogado sênior brasileiro. Gere 5 argumentos jurídicos para uma '+peca+' na área de '+area+'.\n\nCaso: '+ctx+'\n\nPara cada argumento:\nNº. TÍTULO\nFundamento: [artigos, súmulas]\nDesenvolvimento: [2-3 linhas]\n---';
+  try{
+    const res=await callClaude(prompt);
+    ultimosArgs=res;
+    const lista=document.getElementById('args-list');
+    lista.innerHTML='';
+    const linhas=res.split('\n');
+    const args=[];let argAtual=null;let detAtual='';
+    for(const l of linhas){
+      const m=l.match(/^(\d+)\.\s+(.+)/);
+      if(m){if(argAtual)args.push({title:argAtual,detail:detAtual.trim()});argAtual=m[2];detAtual='';}
+      else if(argAtual)detAtual+=l+'\n';
+    }
+    if(argAtual)args.push({title:argAtual,detail:detAtual.trim()});
+    const romanos=['I','II','III','IV','V','VI'];
+    (args.length?args:[{title:'Argumentos gerados',detail:res}]).forEach((a,i)=>{
+      const el=document.createElement('div');el.className='arg-card';
+      const base=a.detail.match(/Fundamento[:\s]+([^\n]+)/i)?.[1]||'Fundamento legal';
+      el.innerHTML='<div class="arg-header"><div class="arg-num">'+(romanos[i]||i+1)+'</div><div class="arg-body"><div class="arg-title">'+a.title.replace(/\*\*/g,'')+'</div><div class="arg-base">'+base.substring(0,55)+'</div></div><div class="arg-expand"><button class="expand-btn" onclick="expandArg(this)">▾ ver</button></div></div><div class="arg-detail">'+a.detail.replace(/\n/g,'<br>')+'</div>';
+      lista.appendChild(el);
+    });
+    document.getElementById('args-output').style.display='block';
+    document.getElementById('ia-desenvolver').style.display='flex';
+    document.getElementById('ia-dev-text').textContent='"Redigir '+peca+' completa de '+area+' com estes argumentos"';
+    document.getElementById('ia-desenvolver').onclick=()=>abrirIA('Redigir '+peca+' completa na área de '+area+' usando:\n\n'+res.substring(0,800)+'\n\nContexto: '+ctx);
+  }catch(e){
+    document.getElementById('args-list').innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--muted)">Erro: '+e.message+'</div>';
+    document.getElementById('args-output').style.display='block';
+  }
+  setLoading('loading-args',false);
+}
+
+function expandArg(btn){
+  const d=btn.closest('.arg-card').querySelector('.arg-detail');
+  const open=d.classList.toggle('show');btn.textContent=open?'▴ fechar':'▾ ver';
+}
+
+/* ===== CONFRONTAR ===== */
+async function confrontar(){
+  const adv=document.getElementById('peca-adv').value.trim();
+  if(!adv||adv.length<30){alert('Cole a peça do adversário.');return;}
+  const def=document.getElementById('peca-def').value.trim();
+  setLoading('loading-conf',true);
+  document.getElementById('conf-output').style.display='none';
+  document.getElementById('stream-conf').textContent='';
+  const prompt='Você é um advogado sênior brasileiro especialista em estratégia processual.\n\nAnalise a peça do adversário:\n1. Identifique 3-5 pontos FRÁGEIS ou vulneráveis\n2. Aponte contradições ou ausência de provas\n3. Sugira como REBATER cada ponto\n4. Avalie a força geral (alta/média/baixa)\n\nPEÇA DO ADVERSÁRIO:\n'+adv.substring(0,2500)+(def?'\n\nSUA DEFESA:\n'+def.substring(0,1000):'');
+  try{
+    const res=await callClaude(prompt);
+    document.getElementById('conf-output').style.display='block';
+    await streamToEl('stream-conf',res);
+    document.getElementById('ia-conf-btn').onclick=()=>abrirIA('Redigir réplica ou contrarrazões completas rebatendo os argumentos adversários com base nesta análise:\n\n'+res.substring(0,600));
+  }catch(e){
+    document.getElementById('stream-conf').textContent='Erro: '+e.message;
+    document.getElementById('conf-output').style.display='block';
+  }
+  setLoading('loading-conf',false);
+}
+
+/* ===== CALCULADORA ===== */
+document.getElementById('prazo-tipo').addEventListener('change',function(){
+  document.getElementById('custom-row').style.display=this.value==='custom'?'grid':'none';
+});
+
+function addDiasUteis(start,dias){
+  let cur=new Date(start);let count=0;
+  while(count<dias){cur.setDate(cur.getDate()+1);const dw=cur.getDay();if(dw!==0&&dw!==6)count++;}
+  return cur;
+}
+
+function calcPrazo(){
+  const inicio=document.getElementById('prazo-inicio').value;
+  if(!inicio)return;
+  const tipo=document.getElementById('prazo-tipo').value;
+  let dias=parseInt(tipo);
+  if(tipo==='custom')dias=parseInt(document.getElementById('prazo-custom').value)||10;
+  const start=new Date(inicio+'T12:00:00');
+  const fim=addDiasUteis(start,dias);
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const diff=Math.round((fim-hoje)/(1000*60*60*24));
+  document.getElementById('result-date').textContent=fim.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  document.getElementById('result-dias').textContent=diff>0?'Restam '+diff+' dia(s) corridos':'Prazo encerrado';
+  const w=document.getElementById('result-warning');
+  if(diff<=3&&diff>0)w.textContent='⚠ Prazo crítico — protocole com urgência';
+  else if(diff<=0)w.textContent='✗ Prazo fatal encerrado';
+  else w.textContent='';
+  document.getElementById('calc-result').style.display='block';
+}
+
+/* ===== RISCO ===== */
+let riscoCtx={};
+function calcRisco(){
+  const area=document.getElementById('r-area').value;
+  const posicao=document.getElementById('r-posicao').value;
+  const fase=document.getElementById('r-fase').value;
+  const prova=document.getElementById('r-prova').value;
+  riscoCtx={area,posicao,fase,prova};
+  let base=50;
+  if(posicao==='autor')base+=10;else base-=5;
+  if(prova==='forte')base+=25;else if(prova==='media')base+=5;else base-=20;
+  if(fase==='instrucao')base+=5;else if(fase==='sentenca')base+=10;else if(fase==='recurso')base-=10;
+  if(area==='consumidor'&&posicao==='autor')base+=10;
+  if(area==='previdenciario')base+=8;
+  base=Math.max(5,Math.min(95,base));
+  document.getElementById('r-pct').textContent=base+'%';
+  let nivel,cor;
+  if(base>=70){nivel='Chance elevada de êxito';cor='#27774a';}
+  else if(base>=45){nivel='Risco moderado — resultado incerto';cor='#d4870e';}
+  else{nivel='Risco alto — posição desfavorável';cor='#c0392b';}
+  const nv=document.getElementById('r-nivel');nv.textContent=nivel;nv.style.color=cor;
+  const bar=document.getElementById('r-bar');bar.style.width=base+'%';bar.style.background=cor;
+  const fatores=[
+    {t:'Posição processual',v:posicao==='autor'?'Autor — iniciativa favorece a tese':'Réu — necessário construir defesa sólida'},
+    {t:'Força probatória',v:prova==='forte'?'Provas robustas fortalecem a pretensão':prova==='media'?'Provas parciais — coleta adicional recomendada':'Provas frágeis — risco de improcedência'},
+    {t:'Fase processual',v:fase==='recurso'?'Recurso — reforma estatisticamente menos comum':fase==='sentenca'?'Pós-sentença — base decisória definida':'Fase inicial — ampla margem de atuação'},
+  ];
+  document.getElementById('r-fatores').innerHTML=fatores.map(f=>'<div class="risco-item"><span class="risco-bullet">—</span><div><strong style="font-size:12px;font-weight:500">'+f.t+':</strong> <span style="font-size:12px;color:var(--muted)">'+f.v+'</span></div></div>').join('');
+  const areaLabel={consumidor:'direito do consumidor',trabalho:'trabalhista',civil:'cível de indenização',previdenciario:'previdenciário',empresarial:'empresarial'}[area]||area;
+  document.getElementById('r-ia-text').textContent='"Estratégia para processo '+areaLabel+' com '+base+'% de êxito"';
+  document.getElementById('ia-risco-btn').onclick=()=>abrirIA('Análise estratégica: processo na área de '+area+', cliente como '+posicao+', fase '+fase+', provas '+prova+'. Estimativa de '+base+'% de êxito. Quais as melhores estratégias, riscos a mitigar e pontos de atenção?');
+  document.getElementById('risco-result').style.display='block';
+}
+
+/* ===== EXEMPLOS ===== */
+function carregarExemplo(caso){
+  const ex={
+    silva:'EXCELENTÍSSIMO SENHOR DOUTOR JUIZ DE DIREITO DA 2ª VARA CÍVEL DE SÃO PAULO\n\nMARIA SILVA, brasileira, portadora do CPF 123.456.789-00, por seu advogado, vem propor AÇÃO DE INDENIZAÇÃO POR DANOS MORAIS em face do BANCO BRADESCO S.A.\n\nDOS FATOS: A autora é correntista do banco réu há 15 anos. Em janeiro de 2024, o banco realizou cobranças indevidas em sua conta, negativando seu nome no Serasa sem aviso prévio, impossibilitando financiamento imobiliário. A dívida alegada já havia sido quitada.\n\nDO DIREITO: Com base no CDC (art. 14 e 42), Código Civil (art. 186 e 927) e Súmula 385 do STJ, requer indenização de R$20.000 por danos morais.\n\nDOS PEDIDOS: Procedência total, condenação ao pagamento de R$20.000 por danos morais, cancelamento da negativação e tutela de urgência.',
+    almeida:'SENTENÇA — Proc. 0005678-99.2023.5.02.0001\n\nJOÃO ALMEIDA ajuizou reclamação trabalhista em face de EMPRESA XYZ LTDA. pleiteando horas extras, adicional noturno e verbas rescisórias. O réu contestou alegando compensação válida.\n\nDO MÉRITO: O reclamante não logrou comprovar labor extraordinário habitual. Os cartões de ponto revelam jornada regular. A testemunha apresentou contradições relevantes.\n\nDISPOSITIVO: Julgo IMPROCEDENTE o pedido. Prazo recursal: 8 dias.',
+    abc:'AUTOS Nº 0009981-12.2024.8.19.0001 — TJRJ\nEMPRESA ABC LTDA. vs. FORNECEDOR OMEGA S.A.\n\nAção de revisão contratual cumulada com perdas e danos. A autora alega desequilíbrio econômico-financeiro por variação cambial acima do previsto. Requer revisão com base no art. 317 e 478 do Código Civil (onerosidade excessiva e teoria da imprevisão).\n\nO réu contestou afirmando que a variação era previsível e que a autora assumiu o risco do negócio.\n\nAudiência de instrução designada.'
+  };
+  document.getElementById('peca-texto').value=ex[caso]||'';
+  nav('analise',document.querySelectorAll('.npill')[3]);
+}
+</script>
+</body>
+</html>
